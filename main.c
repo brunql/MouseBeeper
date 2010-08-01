@@ -9,13 +9,16 @@
 #include <util/delay.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
+#include <util/atomic.h>
+#include <stdlib.h>
 
 #include "main.h"
+#include "bos.h"
 #include "74HC595.h"
 
-#define CODE_NUM_CLEAR	16
 
-#define TIMER0_DIVIDER_VALUE	64
+
+#define CODE_NUM_CLEAR	16
 
 const uint8_t seg7_digits[] = {
 		CODE_0, CODE_1, CODE_2, CODE_3, CODE_4, CODE_5, CODE_6, CODE_7, CODE_8, CODE_9,
@@ -27,79 +30,65 @@ volatile uint8_t showme = 0x00;
 volatile uint8_t first_or_second = 0x00;
 
 volatile uint8_t beep_on = 0x00;
-volatile uint8_t timer0_divider = TIMER0_DIVIDER_VALUE;
+volatile uint8_t display7seg_on = 0x00;
+volatile uint8_t int0_flag = 0x00;
+volatile uint8_t int1_flag = 0x00;
 volatile uint8_t melody = 0x01;
 volatile uint8_t melody_temp = 0x00;
 
 volatile uint8_t sec_to_min = 60;
 
-static inline void Timers_Init(void)
-{
-	TCCR0A = 0x00;
-	TCCR0B = _BV(CS00);
 
-	TCCR1A = 0x00;
-	TCCR1B = _BV(CS12) | _BV(CS10); // 1024
-	TCCR1C = 0x00;
-	OCR1A = 7812; // 1Hz
+void Task_7SegDisplay(void);
+
+static inline void BeeperON(void){  beep_on = 0xff; }
+static inline void BeeperOFF(void){ beep_on = 0x00; }
+
+static inline void Display7SegON(void)
+{
+	OS_AddTaskToEvalQueue( Task_7SegDisplay );
+	display7seg_on = 0xff;
 }
-
-static inline void Timers_Start(void)
+static inline void Display7SegOFF(void)
 {
-	TCNT0 = 0x00;
-	TCNT1 = 0x0000;
-	TIMSK = _BV(TOIE0) | _BV(OCIE1A);
-}
-
-static inline void Timers_Stop(void)
-{
-	TIMSK = 0x00;
+	display7seg_on = 0x00;
 }
 
 
-ISR( TIMER0_OVF_vect )
+
+ISR( TiMER_INTERRUPT_VECTOR )
 {
-	if(beep_on){
-		if(--melody_temp == 0x00){
+	OS_SystemTimerTick();
+	SystemTimer_ResetCounter();
+}
 
-			melody_temp = melody;
 
-			if(PINA & _BV(PA0)){
-				PORTA &=(uint8_t)~_BV(PA0);
-				DDRA &=(uint8_t)~_BV(PA0);
-			}else{
-				PORTA |=_BV(PA0);
-				DDRA |= _BV(PA0);
-			}
-		}
+void Task_7SegDisplay(void)
+{
+	if(first_or_second == 1){
+		first_or_second = 2;
+
+		Display7SegCommon_OFF();
+		HC595_PutUInt8( 0xff );
+
+		Display7SegCommon_Out1();
+		HC595_PutUInt8( ~seg7_digits[(showme & 0x0f)] );
+	}else{
+		first_or_second = 1;
+
+		Display7SegCommon_OFF();
+		HC595_PutUInt8( 0xff );
+
+		Display7SegCommon_Out2();
+		HC595_PutUInt8( ~seg7_digits[(showme & 0xf0)>>4] );
 	}
 
-	if(--timer0_divider == 0){
-		timer0_divider = TIMER0_DIVIDER_VALUE;
-
-
-		if(first_or_second){
-			first_or_second = 0x00;
-
-			led_common_off();
-			HC595_PutUInt8( 0xff );
-
-			led_common_out_1();
-			HC595_PutUInt8( ~seg7_digits[(showme & 0x0f)] );
-		}else{
-			first_or_second = 0x01;
-
-			led_common_off();
-			HC595_PutUInt8( 0xff );
-
-			led_common_out_2();
-			HC595_PutUInt8( ~seg7_digits[(showme & 0xf0)>>4] );
-		}
+	if(display7seg_on){
+		OS_AddTaskToTimerQueue(Task_7SegDisplay, 5);
 	}
 }
 
-
-ISR( TIMER1_COMPA_vect )
+void Task_Countdown(void)
 {
 	if(beep_on){
 		if(++melody == 15){
@@ -113,30 +102,48 @@ ISR( TIMER1_COMPA_vect )
 			}
 		}
 	}
-	TCNT1 = 0x0000;
 }
 
-ISR( INT0_vect )
+void Task_Beep(void)
 {
-	_delay_ms(2);
+	if(beep_on){
+//		if(--melody_temp == 0x00){
+//			melody_temp = melody;
 
+			if(PINA & _BV(PA0)){
+				PORTA &=(uint8_t)~_BV(PA0);
+				DDRA &=(uint8_t)~_BV(PA0);
+			}else{
+				PORTA |=_BV(PA0);
+				DDRA |= _BV(PA0);
+			}
+//		}
+	}
+}
+
+void Task_SwitchOffAll(void)
+{
+	showme = 0x00;
+
+	BeeperOFF();
+	Display7SegOFF();
+	Display7SegCommon_OFF();
+	HC595_PutUInt8( 0xff );
+}
+
+void Task_LittleButtonClicked(void)
+{
 	if(PIND & _BV(PD2)){
-
-		Timers_Stop();
-		showme = 0x00;
-		beep_on = 0x00;
-
-		led_common_off();
-		HC595_PutUInt8( 0xff );
+		OS_AddTaskToEvalQueue( Task_SwitchOffAll );
 	}
 
+	int0_flag = 0;
+	GIMSK |= _BV(INT0);
 	EIFR = _BV(INTF0);
 }
 
-ISR( INT1_vect )
+void Task_MouseWheel(void)
 {
-	_delay_ms(2);
-
 	if(!(PIND & _BV(PD3))){
 		if(PIND & _BV(PD4)){
 			showme++;
@@ -144,16 +151,38 @@ ISR( INT1_vect )
 			showme--;
 		}
 
-		Timers_Start();
-		beep_on = 0x00;
+		Display7SegON();
+		BeeperOFF();
 	}
 
+	int1_flag = 0;
+	GIMSK |= _BV(INT1);
 	EIFR = _BV(INTF1);
 }
 
 
+ISR( INT0_vect )
+{
+	GIMSK &=(uint8_t)~_BV(INT0);
+	if(! int0_flag){
+		int0_flag = 1;
+		OS_AddTaskToTimerQueue( Task_LittleButtonClicked, 10 );
+	}
+	EIFR = _BV(INTF0);
+}
 
-int main(void)
+ISR( INT1_vect )
+{
+	GIMSK &=(uint8_t)~_BV(INT1);
+	if(! int1_flag){
+		int1_flag = 1;
+		OS_AddTaskToTimerQueue( Task_MouseWheel, 10 );
+	}
+	EIFR = _BV(INTF1);
+}
+
+
+static inline void GPIO_Iint(void)
 {
 	PORTA = 0x00;
 	DDRA = _BV(PA0); // Beeper
@@ -162,23 +191,28 @@ int main(void)
 	DDRB = 0x00;
 
 	PORTD = 0x00;
-	DDRD = 0x00; //_BV(PD5);
-
-	led_common_init();
-
-	HC595_Init();
+	DDRD = 0x00;
 
 	ACSR = _BV(ACD); // Analog comparator off
 
-	Timers_Init();
-
 	MCUCR = _BV(ISC00) | _BV(ISC10); // INT0,1 log change
 	GIMSK = _BV(INT0) | _BV(INT1);
+}
 
-	sei();
+
+int main(void)
+{
+	GPIO_Iint();
+	Display7SegCommon_Init();
+	HC595_Init();
+
+	OS_Iinialize();
+	OS_InitSystemTimerAndSei();
 
 	for(;;){
+		OS_EvalTask();
 	}
 
-	return 93; // hard joke!
+	return 93; // not reachable
 }
+

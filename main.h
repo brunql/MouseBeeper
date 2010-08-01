@@ -45,22 +45,22 @@
 #define CODE_CELSIUS 	(a | f | e | d)
 
 // Led common for 7-seg is PD6, PB0;
-static inline void led_common_init(void){
+static inline void Display7SegCommon_Init(void){
 	PORTD &= (uint8_t)~_BV(PD6); DDRD |= _BV(PD6);
 	PORTB &= (uint8_t)~_BV(PB0); DDRB |= _BV(PB0);
 }
 
-static inline void led_common_out_1(void){
+static inline void Display7SegCommon_Out1(void){
 	PORTD |= _BV(PD6);
 	PORTB &= (uint8_t)~_BV(PB0);
 }
 
-static inline void led_common_out_2(void){
+static inline void Display7SegCommon_Out2(void){
 	PORTD &= (uint8_t)~_BV(PD6);
 	PORTB |= _BV(PB0);
 }
 
-static inline void led_common_off(void){
+static inline void Display7SegCommon_OFF(void){
 	PORTD &= (uint8_t)~_BV(PD6);
 	PORTB &= (uint8_t)~_BV(PB0);
 }
