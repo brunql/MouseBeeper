@@ -17,7 +17,7 @@
 static inline void SystemTimer_Init(void)
 {
 	TCCR0A = 0x00;
-	TCCR0B = (0<<CS02) | (1<<CS01) | (1<<CS00);  /* (F_CPU / 256) / 64 == each 2ms */
+	TCCR0B = (0<<CS02) | (1<<CS01) | (0<<CS00);  /* (F_CPU / 256) / 8 == each 250us == 2048 ticks */
 	TCNT0 = 0x00;
 }
 

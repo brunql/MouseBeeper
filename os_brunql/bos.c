@@ -11,11 +11,13 @@
 #include "main.h"
 #include "74HC595.h"
 
+
 enum BOS_ERRORS{
 	EVAL_QUEUE_OVERFLOW_EVAL_TASK 	= CODE_0,
 	EVAL_QUEUE_OVERFLOW_ADD_TASK  	= CODE_1,
 	EVAL_QUEUE_ADD_ERROR			= CODE_2,
-	TIMER_QUEUE_OVERFLOW			= CODE_3
+	TIMER_QUEUE_OVERFLOW			= CODE_3,
+	TIMER_QUEUE_ADD_ZERO			= CODE_4,
 };
 
 struct task {
@@ -28,6 +30,7 @@ struct task timerQueue[ TIMER_QUEUE_SIZE ];
 uint8_t evalQueueNowIndex = 0x00;
 uint8_t evalQueueAddIndex = 0x00;
 ptrTask evalQueue[ EVAL_QUEUE_SIZE ];
+
 
 
 void OS_Error(uint8_t error);
@@ -67,8 +70,12 @@ void OS_AddTaskToEvalQueue(ptrTask task)
 void OS_AddTaskToTimerQueue(ptrTask task, uint16_t time_to_eval)
 {
 	ATOMIC_BLOCK( ATOMIC_RESTORESTATE ){
+		if(time_to_eval == 0){
+			OS_Error(TIMER_QUEUE_ADD_ZERO);
+		}
+
 		// It was an extensive study on a piece of paper, the result is:
-		uint8_t i;
+		uint8_t i = 0;
 		for(i=0; i < TIMER_QUEUE_SIZE; i++){
 			if(timerQueue[i].task == NULL){
 				timerQueue[i].task = task;
@@ -88,13 +95,23 @@ void OS_SystemTimerTick(void)
 	// In interrupt from timer
 	for(uint8_t i=0; i < TIMER_QUEUE_SIZE; i++){
 		if(timerQueue[i].task != NULL){
-			if( --timerQueue[i].time_to_eval == 0){
+			timerQueue[i].time_to_eval--;
+			if( timerQueue[i].time_to_eval == 0){
 				OS_AddTaskToEvalQueue(timerQueue[i].task);
+
 				timerQueue[i].task = NULL;
 				timerQueue[i].time_to_eval = 0;
 			}
 		}
 	}
+//	uint8_t num = 0;
+//		for(uint8_t i=0; i < TIMER_QUEUE_SIZE; i++){
+//			if(timerQueue[i].task != NULL){
+//				num++;
+//			}
+//		}
+//		Display7SegCommon_Out2();
+//		HC595_PutUInt8( ~seg7_digits[(num & 0x0f)] );
 }
 
 void OS_EvalTask(void)

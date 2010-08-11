@@ -44,25 +44,79 @@
 #define CODE_DEGRE		(a | b | g | f)
 #define CODE_CELSIUS 	(a | f | e | d)
 
+
+extern const uint8_t seg7_digits[];
+
+//
 // Led common for 7-seg is PD6, PB0;
-static inline void Display7SegCommon_Init(void){
+//
+inline void Display7SegCommon_Init(void){
 	PORTD &= (uint8_t)~_BV(PD6); DDRD |= _BV(PD6);
 	PORTB &= (uint8_t)~_BV(PB0); DDRB |= _BV(PB0);
 }
 
-static inline void Display7SegCommon_Out1(void){
+inline void Display7SegCommon_Out1(void){
 	PORTD |= _BV(PD6);
 	PORTB &= (uint8_t)~_BV(PB0);
 }
 
-static inline void Display7SegCommon_Out2(void){
+inline void Display7SegCommon_Out2(void){
 	PORTD &= (uint8_t)~_BV(PD6);
 	PORTB |= _BV(PB0);
 }
 
-static inline void Display7SegCommon_OFF(void){
+inline void Display7SegCommon_OFF(void){
 	PORTD &= (uint8_t)~_BV(PD6);
 	PORTB &= (uint8_t)~_BV(PB0);
 }
+
+//
+// Beeper connected to PA0
+//
+inline void BeeperPin_Init(void){
+	PORTA &= (uint8_t)~_BV(PA0);
+	DDRA |= _BV(PA0);
+}
+
+inline uint8_t BeeperPin(void){
+	return (PINA & _BV(PA0));
+}
+
+inline void BeeperPin_Up(void){
+	PORTA |= _BV(PA0);
+}
+
+inline void BeeperPin_Down(void){
+	PORTA &= (uint8_t)~_BV(PA0);
+}
+
+
+enum FLAGS{
+	DISPLAY_ON,
+	DISPLAY_FIRST_OR_SECOND,
+	BEEP_ON,
+	INT0_PROCESSED,
+	INT1_PROCESSED,
+	COUNTDOWN_ON
+};
+
+extern volatile uint8_t flags;
+
+static inline uint8_t FlagOn(uint8_t flag){
+	return (flags & (1<<flag));
+}
+
+static inline uint8_t FlagOff(uint8_t flag){
+	return !FlagOn(flag);
+}
+
+static inline void FlagSet(uint8_t flag){
+	flags |= (1<<flag);
+}
+
+static inline void FlagClear(uint8_t flag){
+	flags &= (uint8_t)~(1<<flag);
+}
+
 
 #endif /* MAIN_H_ */
