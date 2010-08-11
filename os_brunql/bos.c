@@ -18,6 +18,7 @@ enum BOS_ERRORS{
 	EVAL_QUEUE_ADD_ERROR			= CODE_2,
 	TIMER_QUEUE_OVERFLOW			= CODE_3,
 	TIMER_QUEUE_ADD_ZERO			= CODE_4,
+	TIMER_QUEUE_FIND_NULL_ERROR		= CODE_5
 };
 
 struct task {
@@ -76,16 +77,25 @@ void OS_AddTaskToTimerQueue(ptrTask task, uint16_t time_to_eval)
 
 		// It was an extensive study on a piece of paper, the result is:
 		uint8_t i = 0;
+		uint8_t null_index = 0xff;
 		for(i=0; i < TIMER_QUEUE_SIZE; i++){
-			if(timerQueue[i].task == NULL){
-				timerQueue[i].task = task;
+			if(timerQueue[i].task == task){ // i find same task, just update time_to_eval
 				timerQueue[i].time_to_eval = time_to_eval;
-				break; // !
+				null_index = 0xfe;
+				break;
+			}
+			if(timerQueue[i].task == NULL){
+				null_index = i;
 			}
 		}
 
-		if(i == TIMER_QUEUE_SIZE){
-			OS_Error(TIMER_QUEUE_OVERFLOW);
+		if(null_index != 0xfe){
+			if(null_index != 0xff){
+				timerQueue[null_index].task = task;
+				timerQueue[null_index].time_to_eval = time_to_eval;
+			}else{
+				OS_Error(TIMER_QUEUE_OVERFLOW);
+			}
 		}
 	}
 }

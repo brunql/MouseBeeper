@@ -34,14 +34,14 @@ volatile uint8_t showme = 0x00;
 #define BEEP_OFF	8
 #define MELODY_LENGTH 12
 volatile uint8_t melody[MELODY_LENGTH] = {
-		1,2,3,
-		1,1,8,
-		2,2,8,
-		1,1,8,
+		1,1,1,
+		8,8,8,
+		1,1,1,
+		8,8,8,
 };
 volatile uint8_t melody_indx = 0x00;
 
-#define TICKS_COUNT_IN_MINUTE 	16UL*60
+#define TICKS_COUNT_IN_MINUTE 	16UL * 60
 volatile uint16_t ticks_in_minute = TICKS_COUNT_IN_MINUTE;
 
 
@@ -112,15 +112,27 @@ void BeepOnClick(uint8_t melody_index)
 	}
 }
 
+void Task_SwitchAllOff(void)
+{
+	Task_BeepStop();
+
+	FlagClear(DISPLAY_ON);
+	FlagClear(COUNTDOWN_ON);
+
+	Display7SegCommon_OFF();
+	HC595_PutUInt8( 0xff );
+}
+
 void Task_Countdown(void)
 {
 	if(FlagOn(COUNTDOWN_ON)){
 		if(FlagOff(BEEP_ON)){
 			if(--ticks_in_minute == 0){
 				ticks_in_minute = TICKS_COUNT_IN_MINUTE;
-				if((showme == 0) || (--showme == 0)){
-					OS_AddTaskToEvalQueue(Task_Beep);
+				if(--showme == 0){
 					FlagSet(BEEP_ON);
+					OS_AddTaskToEvalQueue(Task_Beep);
+					OS_AddTaskToTimerQueue(Task_SwitchAllOff, 0xffff);
 				}
 			}
 		}else{
@@ -137,13 +149,9 @@ void Task_LittleButtonClicked(void)
 	if(PIND & _BV(PD2)){
 		showme = 0x00;
 
+		Task_SwitchAllOff();
 		BeepOnClick(1);
 
-		FlagClear(DISPLAY_ON);
-		FlagClear(COUNTDOWN_ON);
-
-		Display7SegCommon_OFF();
-		HC595_PutUInt8( 0xff );
 	}
 
 	FlagClear(INT0_PROCESSED);
