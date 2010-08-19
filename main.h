@@ -70,6 +70,11 @@ inline void Display7SegCommon_OFF(void){
 	PORTB &= (uint8_t)~_BV(PB0);
 }
 
+inline uint8_t Display7SegCommon_Check(void){
+	return (PIND & _BV(PD6)) || (PINB & _BV(PB0));
+}
+
+
 //
 // Beeper connected to PA0
 //
@@ -92,12 +97,13 @@ inline void BeeperPin_Down(void){
 
 
 enum FLAGS{
-	DISPLAY_ON,
-	DISPLAY_FIRST_OR_SECOND,
-	BEEP_ON,
-	INT0_PROCESSED,
-	INT1_PROCESSED,
-	COUNTDOWN_ON
+	DISPLAY_ON = 0,
+	DISPLAY_FIRST_OR_SECOND = 1,
+	BEEP_ON = 2,
+	INT0_PROCESSED = 3,
+	INT1_PROCESSED = 4,
+	COUNTDOWN_ON = 5,
+	PLAYING_MELODY = 6
 };
 
 extern volatile uint8_t flags;
